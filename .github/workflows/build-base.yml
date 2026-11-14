@@ -23,6 +23,8 @@ jobs:
           if (-not (Test-Path "upstream/external/ndisapi")) { throw "Required ndisapi submodule is missing." }
           & .\scripts\Apply-BodexBranding.ps1
           if ($LASTEXITCODE -ne 0) { throw "BODEX branding patch failed." }
+          & .\scripts\Add-BodexLicense.ps1
+          if ($LASTEXITCODE -ne 0) { throw "BODEX license integration failed." }
 
       - name: Add MSBuild
         uses: microsoft/setup-msbuild@v2
