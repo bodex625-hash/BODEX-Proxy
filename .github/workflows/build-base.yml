@@ -76,6 +76,15 @@ jobs:
         working-directory: upstream
         shell: pwsh
         run: |
+          $env:VCPKG_ROOT = Join-Path $env:GITHUB_WORKSPACE 'vcpkg'
+          $include = '$(VCPKG_ROOT)\\installed\\x64-windows\\include;%(AdditionalIncludeDirectories)'
+          Get-ChildItem -Path . -Filter '*.vcxproj' -Recurse | ForEach-Object {
+            $nativeProject = Get-Content -LiteralPath $_.FullName -Raw
+            if ($nativeProject -notmatch 'VCPKG_ROOT.*installed') {
+              $nativeProject = $nativeProject.Replace('<ClCompile>', '<ClCompile><AdditionalIncludeDirectories>' + $include + '</AdditionalIncludeDirectories>')
+              Set-Content -LiteralPath $_.FullName -Value $nativeProject -Encoding UTF8
+            }
+          }
           [xml] $props = Get-Content -LiteralPath Directory.Build.props -Raw
           $version = [string] $props.Project.PropertyGroup.ProxiFyreReleaseVersion
           msbuild socksify.sln -t:rebuild -verbosity:minimal -property:Configuration=Release -property:Platform=x64 -property:Version=$version -property:Repository=wiresock/proxifyre
