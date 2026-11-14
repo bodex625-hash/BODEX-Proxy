@@ -34,7 +34,7 @@ namespace ProxiFyreUI.Forms
                 {
                     control.BackColor = Color.FromArgb(0, 174, 239);
                     control.ForeColor = Color.FromArgb(5, 16, 28);
-                    control.FlatStyle = FlatStyle.Flat;
+                    ((Button)control).FlatStyle = FlatStyle.Flat;
                 }
                 else if (control is DataGridView grid)
                 {
