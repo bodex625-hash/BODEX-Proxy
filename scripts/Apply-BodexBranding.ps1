@@ -92,3 +92,9 @@ if (Test-Path $bundle) {
   Set-Content -LiteralPath $bundle -Value $b -Encoding UTF8
 }
 Write-Host 'BODEX branding patch applied. Engine, service names, routing and configuration identifiers remain unchanged.'
+$bundleTest = Join-Path $root 'scripts\Test-BundlePackage.ps1'
+if (Test-Path $bundleTest) {
+  $testSource = Get-Content -LiteralPath $bundleTest -Raw
+  $testSource = $testSource.Replace("GetAttribute('DisplayName') -cne 'ProxiFyre'", "GetAttribute('DisplayName') -cne 'BODEX Proxy'")
+  Set-Content -LiteralPath $bundleTest -Value $testSource -Encoding UTF8
+}
