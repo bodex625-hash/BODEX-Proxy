@@ -1,0 +1,123 @@
+name: BODEX Proxy - Windows x64 base build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout BODEX project
+        uses: actions/checkout@v4
+
+      - name: Fetch pinned upstream source and submodules
+        shell: pwsh
+        run: |
+          git clone --branch v2.7.0 --depth 1 --recurse-submodules https://github.com/wiresock/proxifyre.git upstream
+          if ($LASTEXITCODE -ne 0) { throw "Could not fetch upstream ProxiFyre v2.7.0." }
+          if (-not (Test-Path "upstream/external/ndisapi")) { throw "Required ndisapi submodule is missing." }
+
+      - name: Add MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: '[17.0,18.0)'
+
+      - name: Install vcpkg dependencies
+        shell: pwsh
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg clone failed." }
+          .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg bootstrap failed." }
+          .\vcpkg\vcpkg.exe install ms-gsl:x64-windows boost-pool:x64-windows
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg dependency installation failed." }
+
+      - name: Install NuGet CLI
+        shell: pwsh
+        run: choco install nuget.commandline --no-progress -y
+
+      - name: Restore legacy NuGet packages
+        working-directory: upstream
+        shell: pwsh
+        run: |
+          @(
+            'ProxiFyre.Configuration\packages.config',
+            'ProxiFyre\packages.config',
+            'ProxiFyre.Tests\packages.config',
+            'netlib-tests\packages.config'
+          ) | ForEach-Object {
+            nuget restore $_ -PackagesDirectory packages -NonInteractive
+            if ($LASTEXITCODE -ne 0) { throw "NuGet restore failed for $_." }
+          }
+
+      - name: Restore installer packages
+        working-directory: upstream
+        shell: pwsh
+        run: |
+          msbuild ProxiFyreSetupBootstrapper\ProxiFyreSetupBootstrapper.vcxproj -target:Restore -verbosity:minimal -property:RestoreLockedMode=true -property:RestoreConfigFile="${{ github.workspace }}\upstream\NuGet.Installer.Config"
+          if ($LASTEXITCODE -ne 0) { throw "Bootstrapper restore failed." }
+          msbuild ProxiFyreSetupEngineExtension\ProxiFyreSetupEngineExtension.vcxproj -target:Restore -verbosity:minimal -property:RestoreLockedMode=true -property:RestoreConfigFile="${{ github.workspace }}\upstream\NuGet.Installer.Config"
+          if ($LASTEXITCODE -ne 0) { throw "Engine extension restore failed." }
+          dotnet restore ProxiFyre.Installer\ProxiFyre.Installer.wixproj --configfile NuGet.Installer.Config --locked-mode
+          if ($LASTEXITCODE -ne 0) { throw "MSI restore failed." }
+          dotnet restore ProxiFyre.Bundle\ProxiFyre.Bundle.wixproj --configfile NuGet.Installer.Config --locked-mode
+          if ($LASTEXITCODE -ne 0) { throw "Bundle restore failed." }
+
+      - name: Build engine and GUI
+        working-directory: upstream
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content -LiteralPath Directory.Build.props -Raw
+          $version = [string] $props.Project.PropertyGroup.ProxiFyreReleaseVersion
+          msbuild socksify.sln -t:rebuild -verbosity:minimal -property:Configuration=Release -property:Platform=x64 -property:Version=$version -property:Repository=wiresock/proxifyre
+          if ($LASTEXITCODE -ne 0) { throw "Solution build failed." }
+
+      - name: Run managed tests
+        working-directory: upstream
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vstest = & $vswhere -latest -products * -find '**\vstest.console.exe' | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($vstest)) { throw 'vstest.console.exe was not found.' }
+          & $vstest "bin\tests\x64\Release\ProxiFyre.Tests.dll" "/TestAdapterPath:packages\NUnit3TestAdapter.4.6.0\build\net462" "/Platform:x64"
+          if ($LASTEXITCODE -ne 0) { throw "Managed tests failed." }
+
+      - name: Build Windows installer
+        working-directory: upstream
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content -LiteralPath Directory.Build.props -Raw
+          $version = [string] $props.Project.PropertyGroup.ProxiFyreReleaseVersion
+          ./scripts/Build-Installer.ps1 -Platform x64 -Version $version -PayloadDirectory 'bin\exe\x64\Release' -OutputDirectory 'bin\installer\x64\Release' -NoRestore -Force
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
+
+      - name: Verify expected output
+        working-directory: upstream
+        shell: pwsh
+        run: |
+          $payload = 'bin\exe\x64\Release'
+          foreach ($file in 'ProxiFyre.exe','ProxiFyreUI.exe','socksify.dll','ProxiFyre.Configuration.dll') {
+            if (-not (Test-Path (Join-Path $payload $file))) { throw "Missing required output: $file" }
+          }
+          $installer = 'bin\installer\x64\Release'
+          if (-not (Get-ChildItem $installer -Filter '*-setup.exe' -File)) { throw 'Setup EXE was not produced.' }
+          if (-not (Get-ChildItem $installer -Filter '*.msi' -File)) { throw 'MSI was not produced.' }
+
+      - name: Upload verified base artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BODEX-Proxy-x64-base-v2.7.0
+          if-no-files-found: error
+          path: |
+            upstream/bin/installer/x64/Release/*.exe
+            upstream/bin/installer/x64/Release/*.msi
+            upstream/bin/installer/x64/Release/*.sha256
+            upstream/bin/exe/x64/Release/ProxiFyre.exe
+            upstream/bin/exe/x64/Release/ProxiFyreUI.exe
+            upstream/bin/exe/x64/Release/socksify.dll
+            upstream/bin/exe/x64/Release/ProxiFyre.Configuration.dll
