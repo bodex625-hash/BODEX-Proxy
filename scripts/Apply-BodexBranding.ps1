@@ -12,7 +12,7 @@ using System.Drawing;
 using System.Windows.Forms;
 namespace ProxiFyreUI.Forms
 {
-    public partial class MainForm
+    internal partial class MainForm
     {
         private void ApplyBodexBranding()
         {
