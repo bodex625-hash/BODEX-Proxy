@@ -21,6 +21,8 @@ jobs:
           git clone --branch v2.7.0 --depth 1 --recurse-submodules https://github.com/wiresock/proxifyre.git upstream
           if ($LASTEXITCODE -ne 0) { throw "Could not fetch upstream ProxiFyre v2.7.0." }
           if (-not (Test-Path "upstream/external/ndisapi")) { throw "Required ndisapi submodule is missing." }
+          & .\scripts\Apply-BodexBranding.ps1
+          if ($LASTEXITCODE -ne 0) { throw "BODEX branding patch failed." }
 
       - name: Add MSBuild
         uses: microsoft/setup-msbuild@v2
