@@ -3,7 +3,7 @@ $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\upstream'))
 $main = Join-Path $root 'ProxiFyreUI\Forms\MainForm.cs'
 $source = Get-Content -LiteralPath $main -Raw
 if ($source -notmatch 'ApplyBodexBranding\(\);') {
-  $source = $source.Replace('            InitializeComponent();', '            InitializeComponent();' + [Environment]::NewLine + '            ApplyBodexBranding();')
+  $source = $source.Replace('            notifyIcon.Icon = _applicationIcon;', '            notifyIcon.Icon = _applicationIcon;' + [Environment]::NewLine + '            ApplyBodexBranding();')
   Set-Content -LiteralPath $main -Value $source -Encoding UTF8
 }
 $uiDir = Join-Path $root 'ProxiFyreUI'
@@ -17,7 +17,6 @@ namespace ProxiFyreUI.Forms
         private void ApplyBodexBranding()
         {
             Text = "BODEX Proxy";
-            titleLabel.Text = "BODEX Proxy";
             BackColor = Color.FromArgb(11, 18, 32);
             ForeColor = Color.FromArgb(226, 238, 250);
             ApplyBodexThemeToControls(Controls);
