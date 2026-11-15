@@ -160,7 +160,7 @@ namespace BODEX.Proxy.Vpn
             security.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
                 FileSystemRights.FullControl, AccessControlType.Allow));
-            File.SetAccessControl(path, security);
+            new FileInfo(path).SetAccessControl(security);
         }
 
         private static void RestrictDirectoryToSystemAndAdministrators(string directory)
