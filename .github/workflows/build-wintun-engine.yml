@@ -1,0 +1,67 @@
+name: BODEX VPN Engine - Windows x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/wintun-vpn-tunnel]
+    paths:
+      - ".github/workflows/build-wintun-engine.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-engine:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout BODEX integration branch
+        uses: actions/checkout@v4
+
+      - name: Install pinned Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+          check-latest: false
+          cache: false
+
+      - name: Fetch pinned tun2socks source
+        shell: pwsh
+        run: |
+          git clone --branch v2.7.0 --depth 1 https://github.com/xjasonlyu/tun2socks.git upstream-tun2socks
+          if ($LASTEXITCODE -ne 0) { throw "Could not fetch tun2socks v2.7.0." }
+          $tag = git -C upstream-tun2socks describe --tags --exact-match
+          if ($LASTEXITCODE -ne 0 -or $tag -ne "v2.7.0") { throw "Unexpected tun2socks source revision: $tag" }
+
+      - name: Build Windows amd64 engine
+        shell: pwsh
+        run: |
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $env:CGO_ENABLED = "0"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Push-Location upstream-tun2socks
+          try {
+            go build -trimpath -buildvcs=false -ldflags="-s -w" -o ..\dist\BODEX-Tun2Socks.exe .
+            if ($LASTEXITCODE -ne 0) { throw "tun2socks Windows amd64 build failed." }
+            go version -m ..\dist\BODEX-Tun2Socks.exe | Out-File -Encoding utf8 ..\dist\BODEX-Tun2Socks-build-info.txt
+            Copy-Item LICENSE ..\dist\tun2socks-MIT-LICENSE.txt
+          }
+          finally { Pop-Location }
+
+      - name: Verify binary and produce checksum
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist\BODEX-Tun2Socks.exe)) { throw "Engine binary is missing." }
+          & dist\BODEX-Tun2Socks.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Engine version check failed." }
+          Get-FileHash dist\BODEX-Tun2Socks.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  BODEX-Tun2Socks.exe" } |
+            Set-Content -Encoding ascii dist\SHA256SUMS.txt
+
+      - name: Upload engine-only verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BODEX-Wintun-Engine-v2.7.0-windows-x64
+          if-no-files-found: error
+          path: dist/*
+          retention-days: 14
