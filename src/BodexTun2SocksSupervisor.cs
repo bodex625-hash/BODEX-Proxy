@@ -202,4 +202,10 @@ namespace BODEX.Proxy.Vpn
             lock (_gate) _disposed = true;
         }
     }
+
+    public sealed class EngineExitedEventArgs : EventArgs
+    {
+        public EngineExitedEventArgs(int exitCode) { ExitCode = exitCode; }
+        public int ExitCode { get; private set; }
+    }
 }
