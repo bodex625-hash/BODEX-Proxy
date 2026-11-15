@@ -78,6 +78,14 @@ namespace BODEX.Proxy.Vpn
                 {
                     if (!child.Start()) throw new InvalidOperationException("Windows did not start the BODEX tunnel engine.");
                     _process = child;
+
+                    // Drain both redirected streams asynchronously. Without this, a verbose
+                    // engine can fill an OS pipe buffer and block forever while the service
+                    // waits for the child process to exit.
+                    child.OutputDataReceived += OnEngineOutput;
+                    child.ErrorDataReceived += OnEngineOutput;
+                    child.BeginOutputReadLine();
+                    child.BeginErrorReadLine();
                 }
                 catch
                 {
@@ -113,6 +121,11 @@ namespace BODEX.Proxy.Vpn
                 child.Dispose();
                 SecureDeleteConfig();
             }
+        }
+
+        private static void OnEngineOutput(object sender, DataReceivedEventArgs e)
+        {
+            // Intentionally drained here; production logging is handled by the service.
         }
 
         private void OnEngineExited(object sender, EventArgs e)
