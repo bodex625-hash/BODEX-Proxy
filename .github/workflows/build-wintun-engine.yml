@@ -48,6 +48,12 @@ jobs:
           }
           finally { Pop-Location }
 
+      - name: Build BODEX Windows VPN control component
+        shell: pwsh
+        run: |
+          dotnet build src/BodexVpnControl.csproj --configuration Release --output dist
+          if ($LASTEXITCODE -ne 0) { throw "BODEX VPN control component build failed." }
+
       - name: Verify binary and produce checksum
         shell: pwsh
         run: |
