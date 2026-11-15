@@ -22,7 +22,7 @@ namespace BODEX.Proxy.Vpn
         private string _configPath;
         private bool _disposed;
 
-        public event EventHandler<int> EngineExited;
+        public event EventHandler<EngineExitedEventArgs> EngineExited;
 
         public BodexTun2SocksSupervisor(string enginePath, string stateDirectory)
         {
@@ -129,7 +129,7 @@ namespace BODEX.Proxy.Vpn
                 }
             }
             var handler = EngineExited;
-            if (handler != null) handler(this, code);
+            if (handler != null) handler(this, new EngineExitedEventArgs(code));
         }
 
         private static string BuildProxyUri(string host, int port, string user, string pass)
