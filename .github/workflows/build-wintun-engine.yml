@@ -6,6 +6,8 @@ on:
     branches: [feature/wintun-vpn-tunnel]
     paths:
       - ".github/workflows/build-wintun-engine.yml"
+      - "src/BodexTun2SocksSupervisor.cs"
+      - "src/BodexVpnControl.csproj"
 
 permissions:
   contents: read
